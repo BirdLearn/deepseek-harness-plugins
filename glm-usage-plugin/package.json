@@ -1,0 +1,56 @@
+{
+  "name": "glm-usage-panel",
+  "description": "GLM Coding Plan usage, balance and reset windows as progress bars in the DeepSeek Harness settings",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "BirdLearn",
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "glm",
+    "zhipu",
+    "usage",
+    "quota"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BirdLearn/deepseek-harness-plugins.git"
+  },
+  "bugs": {
+    "url": "https://github.com/BirdLearn/deepseek-harness-plugins/issues"
+  },
+  "homepage": "https://github.com/BirdLearn/deepseek-harness-plugins#readme",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts",
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": []
+    },
+    "bundle": {
+      "patch": [
+        "./cordis.patch.yml"
+      ]
+    }
+  },
+  "scripts": {
+    "bundle": "tsdown"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.2"
+  }
+}

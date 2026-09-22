@@ -1,0 +1,8 @@
+# Bundle layer: mount this package with its default configuration.
+- insert:
+    - id: glm-usage-panel
+      name: glm-usage-panel
+      config:
+        baseUrl: https://open.bigmodel.cn
+        apiKeyRef: ZAI_CODING_CN_API_KEY
+        cacheTtlMs: 60000

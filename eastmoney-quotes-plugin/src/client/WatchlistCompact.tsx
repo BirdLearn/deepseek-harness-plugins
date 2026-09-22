@@ -119,6 +119,7 @@ export function ComposerQuotesRing({ t, useQuotes, refresh }: QuotesRingProps): 
 
   return (
     <span ref={rootRef} className="emqs-root">
+      <style>{CSS}</style>
       <button
         type="button"
         className="emqs-trigger"

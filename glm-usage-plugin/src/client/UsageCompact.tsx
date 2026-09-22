@@ -150,6 +150,7 @@ export function ComposerUsageBadge({ t, useUsage, refresh }: UsageCompactProps):
 
   return (
     <span ref={rootRef} className="glmu-root">
+      <style>{CSS}</style>
       <button
         type="button"
         className="glmu-trigger"

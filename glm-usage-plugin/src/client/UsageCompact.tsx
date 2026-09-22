@@ -107,7 +107,7 @@ export function ComposerUsageBadge({ t, useUsage, refresh }: UsageCompactProps):
   const circumference = 2 * Math.PI * radius
   const pct = Math.min(100, Math.max(0, percentage ?? 0))
   return (
-    <div style={{ position: 'relative' }}
+    <div style={{ position: 'relative', marginLeft: 'auto' }}
       onPointerEnter={() => { setHover(true); setClosed(false); void refresh() }}
       onPointerLeave={() => { setHover(false) }}
       onClick={() => { void refresh() }}>

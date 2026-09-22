@@ -83,8 +83,8 @@ export function apply(ctx: Context): void {
     inject: () => operations,
   }, UsageSection))
 
-  ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
-    name: 'conversation.input.left',
+  ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
+    name: 'conversation.composer.dock',
     locale: 'glm.usage',
     id: 'glm-usage-badge',
     inject: () => operations,

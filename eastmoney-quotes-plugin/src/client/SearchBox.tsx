@@ -43,10 +43,10 @@ const CSS = `
 .emqs-title { font-size: 12.5px; font-weight: 500; color: var(--dsw-alias-label-primary, inherit); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .emqs-title code { font-size: 11px; color: var(--dsw-alias-label-tertiary, gray); margin-left: 6px; }
 .emqs-quote { font-size: 11px; color: var(--dsw-alias-label-secondary, gray); display: flex; gap: 8px; font-variant-numeric: tabular-nums; }
-.emqs-add { flex-shrink: 0; border: none; background: var(--dsw-static-deepseek-100, #4d6bfe); color: #fff; cursor: pointer;
-  font-size: 11.5px; padding: 4px 14px; border-radius: 999px; }
-.emqs-add:hover:not(:disabled) { filter: brightness(1.08); }
-.emqs-add:disabled { background: transparent; border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.3)); color: var(--dsw-alias-label-tertiary, gray); cursor: default; }
+.emqs-add { flex-shrink: 0; border: none; background: #4d6bfe; color: #ffffff; cursor: pointer;
+  font-size: 12px; font-weight: 600; padding: 4px 16px; border-radius: 999px; letter-spacing: 0.5px; }
+.emqs-add:hover:not(:disabled) { background: #3a56e8; }
+.emqs-add:disabled { background: transparent; border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.35)); color: var(--dsw-alias-label-tertiary, gray); cursor: default; font-weight: 500; }
 .emqs-status { font-size: 11px; color: var(--dsw-alias-label-tertiary, gray); }
 .emqs-fail { font-size: 11px; color: var(--dsw-alias-status-critical, #d5494c); }
 `

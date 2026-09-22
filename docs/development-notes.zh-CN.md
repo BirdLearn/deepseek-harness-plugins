@@ -143,3 +143,60 @@ DSH_HOME=$PWD/.dev-home pnpm dsh web              # web profile 调试（桌面 
 | `eastmoney-quotes-panel` | 公开 API + 三源降级 + 表格轮询 | GBK 解码、字段派生、WAF 规避、Volatile 配置读取 |
 
 新插件按此模板复制目录结构 → 改 package.json 的 name/banner id → setup-links.sh → 写 src → tsdown 构建 → 安装测试。
+
+---
+
+## 补充经验：弹窗交互与样式注入（第二轮实战）
+
+以下来自 GLM 用量弹窗与行情弹窗的多轮迭代，同样适用于任何带 composer 浮层的插件。
+
+### 弹窗交互：照抄 ContextMeter 模式，不要自己发明
+
+原生输入框工具（上下文环形统计等）的弹窗模式是固定的四件套，外部插件应完整复刻：
+
+```ts
+const [open, setOpen] = useState(false)
+const rootRef = useRef<HTMLSpanElement | null>(null)
+const panelRef = useRef<HTMLDivElement | null>(null)
+const position = useAnchoredPosition({ open, anchorRef: rootRef, panelRef, side: 'top', gap: 8, margin: 12 })
+useDismissOnOutsidePointer(rootRef, open, setOpen, panelRef)
+// Escape 关闭 + 面板用 createPortal(…, document.body) 渲染
+```
+
+- **点击开关**（`onClick: setOpen(!open)`），触发器按钮带 `aria-expanded` / `aria-haspopup='dialog'`。
+- 面板**必须 `createPortal` 到 body**：`position: fixed` + hook 返回的 `{left, top}`。直接渲染在槽位内会被侧栏/卡片的 overflow 裁剪（实测：`sidebar.footer.action` 的浮层被整体截断，已放弃该槽位）。
+- `useAnchoredPosition` 返回 `null` 时面板要先 `visibility: hidden` 占位，否则首帧闪现。
+- 打开时主动刷新数据（用户预期"点开即最新"）；Escape 与外点关闭都要接。
+
+### CSS 注入：定义了样式表就必须渲染 `<style>`
+
+外部包没有 CSS Modules 管线，惯用做法是组件内 `const CSS = \`…\`` + 渲染 `<style>{CSS}</style>`。
+**最大的坑：只定义 `const CSS` 而忘记渲染 style 标签** —— 类名全部失效，弹窗退化成行内裸文本，且 tsc/构建都不会报错。修复后务必肉眼确认浮层有卡片底色和阴影。
+
+### 槽位选择的实测结论
+
+| 槽位 | 结论 |
+|---|---|
+| `conversation.input.left` | 可用（输入工具行左侧），但空间紧凑 |
+| `conversation.composer.dock` | 可用（composer 下方环境行）；根元素 `margin-left:auto` 可推到该行右端；无裁剪问题，**推荐** |
+| `sidebar.footer.action` | ⚠️ 侧栏容器 overflow 裁剪浮层，不要用 |
+| `settings.section` | 完整管理面板放这里 |
+
+注意：`conversation.*` 槽位的类型声明在 `@deepseek-ai/dsh-client-ui-chat/client`（不只是 ui-conversation），缺这个 type import 会报槽位 key 不存在。
+
+### Volatile 配置（再次强调）
+
+`z.string().volatile()` 传入插件的是 `Volatile<T>` 引用，必须 `.get()` 读取。Config 接口要把字段类型写成 `Volatile<string>`，让类型系统在编译期拦住误用。运行时症状：webserver handler 抛 TypeError → webserver 兜底变裸 400 → 客户端只见 "network failed"。**handler 内部自捕获异常并把错误文本放进 200 JSON 响应**，调试效率天差地别。
+
+### 多源数据接口
+
+- 搜索源稳定性：腾讯 smartbox > 东财 suggest。东财 suggest 负载均衡会随机返回股吧用户搜索结果（passportWeb），即使加 `x-requested-with: XMLHttpRequest` 也不保证；只配作降级备源。
+- 腾讯 smartbox 返回 GBK + 字面 `\uXXXX` 转义，需 `TextDecoder('gbk')` + 转义解码两次处理。
+- 行情源回显的是市场内代码（`00100`），存储的是带前缀符号（`hk00100`）——解析后要做一层 providerCode↔storedSymbol 映射回写，否则多市场行会被静默过滤。
+- 调试期高频请求会触发东财 IP 级限流（连 HTTP 明文都 tarpit）；产品内 10s × 少量自选是安全的，且要有降级源兜底。
+
+### 调试方法论
+
+- **改一版就在真实环境点一遍**：样式类丢失、注册块被后续编辑覆盖这类问题，靠"再编译一次"是发现不了的。UI 改动后用 Playwright 断言 `.xxx-panel` 存在且 visible，比肉眼可靠。
+- 大段 python/perl 批量替换代码时路径必须用绝对路径（相对路径在多次 cd 后极易写错文件或静默失败）。
+- 编辑工具报 "file changed since read" 时先重新 read 再改，不要盲目重试。

@@ -127,8 +127,8 @@ export function apply(ctx: Context): void {
     inject: () => operations,
   }, QuotesSection))
 
-  ctx.slots.inject('conversation.input.left', () => ctx.slots.register({
-    name: 'conversation.input.left',
+  ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
+    name: 'conversation.composer.dock',
     locale: 'em.quotes',
     id: 'em-quotes-badge',
     inject: () => operations,

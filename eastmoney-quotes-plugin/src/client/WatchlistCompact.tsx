@@ -110,7 +110,7 @@ export function ComposerQuotesRing({ useQuotes, refresh }: QuotesRingProps): Rea
   const [hover, setHover] = useState(false)
   const failing = quotes.failed && !quotes.loading
   return (
-    <div style={{ position: 'relative' }}
+    <div style={{ position: 'relative', marginLeft: 'auto' }}
       onPointerEnter={() => { setHover(true); void refresh() }}
       onPointerLeave={() => { setHover(false) }}
       onClick={() => { void refresh() }}>

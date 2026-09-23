@@ -101,8 +101,8 @@ function displayCode(code: string): string {
   if (code.startsWith('sh')) return `${code.slice(2)}.SH`
   if (code.startsWith('bj')) return `${code.slice(2)}.BJ`
   if (code.startsWith('us')) return code.slice(2)
-  if (code.startsWith('6')) return `${code}.SH`
-  if (code.startsWith('0') || code.startsWith('3')) return `${code}.SZ`
+  if (code.startsWith('6') || code.startsWith('5')) return `${code}.SH`
+  if (code.startsWith('15') || code.startsWith('16') || code.startsWith('18') || code.startsWith('0') || code.startsWith('3')) return `${code}.SZ`
   return code
 }
 

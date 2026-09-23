@@ -74,8 +74,8 @@ function normalizeCode(code: string): NormalizedCode | undefined {
   const us = /^us([a-z.]{1,6})$/u.exec(trimmed)
   if (us !== null) return { digits: us[1].toUpperCase(), exchange: 'us' }
   if (!/^\d{6}$/u.test(trimmed)) return undefined
-  if (trimmed.startsWith('6')) return { digits: trimmed, exchange: 'sh' }
-  if (trimmed.startsWith('0') || trimmed.startsWith('3')) return { digits: trimmed, exchange: 'sz' }
+  if (trimmed.startsWith('6') || trimmed.startsWith('5')) return { digits: trimmed, exchange: 'sh' }
+  if (trimmed.startsWith('0') || trimmed.startsWith('3') || trimmed.startsWith('1')) return { digits: trimmed, exchange: 'sz' }
   if (trimmed.startsWith('4') || trimmed.startsWith('8') || trimmed.startsWith('9')) return { digits: trimmed, exchange: 'bj' }
   return undefined
 }
@@ -349,6 +349,7 @@ export function parseTencentHints(text: string): readonly EmSuggestion[] {
     const labels: Record<string, string> = { sh: '沪A', sz: '深A', bj: '北A', hk: '港股', us: '美股' }
     if (market === 'hk' && kind === 'GP') return [{ code: `hk${code}`, name: decodeUnicodeEscapes(fields[2] ?? code), marketLabel: labels.hk! }]
     if (market === 'us' && kind === 'GP') return [{ code: `us${code}`, name: decodeUnicodeEscapes(fields[2] ?? code), marketLabel: labels.us! }]
+    if (/^(sh|sz)$/.test(market) && kind === 'ETF') return [{ code, name: decodeUnicodeEscapes(fields[2] ?? code), marketLabel: market === 'sh' ? 'ETF·沪' : 'ETF·深' }]
     if (!/^(sh|sz|bj)$/u.test(market) || !(kind === 'GP-A' || kind === 'GP')) return []
     return [{ code, name: decodeUnicodeEscapes(fields[2] ?? code), marketLabel: (labels as Record<string, string>)[market] ?? '' }]
   })

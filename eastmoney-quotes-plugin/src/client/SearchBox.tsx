@@ -61,6 +61,8 @@ function marketOf(suggestion: EmSuggestion): { label: string; color: string; gro
   if (code.startsWith('300') || code.startsWith('301')) return { label: '深A', color: '#3b8a68', group: 'a' }
   if (code.startsWith('60')) return { label: '沪A', color: '#c24042', group: 'a' }
   if (code.startsWith('8') || code.startsWith('4') || code.startsWith('92')) return { label: '北A', color: '#8a6d3b', group: 'a' }
+  if (code.startsWith('5')) return { label: '沪基金', color: '#b8860b', group: 'a' }
+  if (code.startsWith('15') || code.startsWith('16') || code.startsWith('18')) return { label: '深基金', color: '#b8860b', group: 'a' }
   if (code.startsWith('0')) return { label: '深A', color: '#3b8a68', group: 'a' }
   return { label: '—', color: 'gray', group: 'a' }
 }

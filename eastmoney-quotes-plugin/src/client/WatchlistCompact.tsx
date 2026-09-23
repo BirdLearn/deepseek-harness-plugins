@@ -57,6 +57,15 @@ const CSS = `
 `
 
 /** Change color: A-share red for gains, green for losses. */
+/** Solid caret arrow: up when `up`, otherwise flipped. */
+function CaretArrow({ up, color }: { up: boolean; color: string }): ReactElement {
+  return (
+    <svg width={8} height={8} viewBox="0 0 8 8" aria-hidden style={{ flexShrink: 0 }}>
+      <path d={up ? 'M4 1 L7.2 6.4 L0.8 6.4 Z' : 'M4 7 L0.8 1.6 L7.2 1.6 Z'} fill={color} />
+    </svg>
+  )
+}
+
 function changeColor(value: number | undefined): string {
   if (value === undefined || value === 0) return 'var(--dsw-alias-label-secondary)'
   return value > 0 ? 'var(--emq-up, #e03131)' : 'var(--emq-down, #2f9e44)'
@@ -155,7 +164,14 @@ export function ComposerQuotesRing({ t, useQuotes, refresh }: QuotesRingProps): 
                     {row.price === undefined ? '—' : row.price.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                   <span className="emqs-chip" style={chipStyle(row.changePct)}>
-                    {row.changePct === undefined ? '—' : `${up ? '∧' : '∨'} ${row.changePct > 0 ? '+' : ''}${String(row.changePct)}%`}
+                    {row.changePct === undefined
+                      ? '—'
+                      : (
+                          <>
+                            <CaretArrow up={up} color={chipStyle(row.changePct).color} />
+                            {`${row.changePct > 0 ? '+' : ''}${String(row.changePct)}%`}
+                          </>
+                        )}
                   </span>
                 </div>
               )

@@ -131,6 +131,7 @@ export function apply(ctx: Context): void {
     name: 'conversation.composer.dock',
     locale: 'em.quotes',
     id: 'em-quotes-badge',
+    order: 20,
     inject: () => operations,
   }, ComposerQuotesRing))
 }

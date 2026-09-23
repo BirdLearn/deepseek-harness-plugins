@@ -26,7 +26,7 @@ export interface QuotesRingProps {
 }
 
 const CSS = `
-.emqs-root { display: inline-flex; flex: none; margin-left: auto; }
+.emqs-root { display: inline-flex; flex: none; }
 .emqs-trigger { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 1px 8px;
   border: none; border-radius: 24px; background: transparent; color: var(--dsw-alias-label-tertiary);
   font-family: inherit; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; }

@@ -87,6 +87,7 @@ export function apply(ctx: Context): void {
     name: 'conversation.composer.dock',
     locale: 'glm.usage',
     id: 'glm-usage-badge',
+    order: 10,
     inject: () => operations,
   }, ComposerUsageBadge))
 }

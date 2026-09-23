@@ -162,7 +162,12 @@ export function ComposerQuotesRing({ t, useQuotes, refresh }: QuotesRingProps): 
               return (
                 <div key={row.code} className="emqs-row">
                   <span className="emqs-bar" style={{ background: changeColor(row.changePct) }} />
-                  <span className="emqs-name">{row.name ?? row.code}</span>
+                  <span className="emqs-name">{row.name ?? row.code}
+                    {row.code.startsWith('hk')
+                      ? <span title="免费港股源延迟约 15 分钟" style={{ fontSize: 9.5, marginLeft: 5, padding: '0 4px', borderRadius: 4,
+                        border: '1px solid var(--dsw-alias-border-l2)', color: 'var(--dsw-alias-label-tertiary)' }}>延时</span>
+                      : null}
+                  </span>
                   <span className="emqs-code">{displayCode(row.code)}</span>
                   <span className="emqs-price">
                     {row.price === undefined ? '—' : row.price.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

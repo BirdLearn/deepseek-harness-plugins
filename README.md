@@ -36,12 +36,26 @@ Realtime A-share and HK watchlist quotes, powered by public Eastmoney / Tencent 
 | `symbols` | `600519,000001,300750` | Initial watchlist; runtime edits persist in storage and take precedence. |
 | `source` | `auto` | `auto` walks the fallback chain, or pin one of `eastmoney` / `tencent` / `sina`. |
 
+### [btw-panel](btw-plugin/)
+
+Mid-task **btw reminders**: drop a side note into a running DeepSeek session without interrupting it.
+
+- **Composer bubble icon** — a `btw` trigger in the input toolbar (slot order 30); click to open a reminder input, enabled only while the current session has a running task (live `running` session state, no polling).
+- **Silent injection** — the client posts `{ sessionId, text }` to the Host `/btw/send` route; the Host resolves the live agent via the `agents` registry and calls `agent.inject(...)`: the reminder joins the `next-step` inbox **without waking or aborting** the running turn, and the model reads it as side-channel context at the nearest tool-call step boundary.
+- **Source tagging** — every reminder carries a `btw-reminder` message source and a configurable prefix (default `[btw]`), so the model and the transcript can tell side notes from user turns.
+
+| Config | Default | Description |
+|---|---|---|
+| `prefix` | `[btw]` | Prefix prepended to every injected reminder. |
+| `maxChars` | `2000` | Maximum reminder length in characters. |
+
 ## Install (Desktop)
 
 1. Build the plugins (see below).
 2. In the DeepSeek Harness Desktop app, open **Settings → Plugins** and install from a local path:
    - `glm-usage-plugin/`
    - `eastmoney-quotes-plugin/`
+   - `btw-plugin/`
 
 Each directory declares `dsh.bundle`, so installing mounts it immediately; restart the app once so the Host half activates.
 
@@ -66,7 +80,7 @@ After editing, rebuild and restart the Desktop app — the client bundle revisio
 ## Documentation
 
 - [Development notes (中文)](docs/development-notes.zh-CN.md) — everything learned building out-of-tree Harness plugins: dual-face packages, the lazy-CJS client bundle format, slot registration, credential references, provider quirks and macOS build pitfalls.
-- Per-plugin READMEs: [glm-usage-panel](glm-usage-plugin/README.md) · [eastmoney-quotes-panel](eastmoney-quotes-plugin/README.md)
+- Per-plugin READMEs: [glm-usage-panel](glm-usage-plugin/README.md) · [eastmoney-quotes-panel](eastmoney-quotes-plugin/README.md) · [btw-panel](btw-plugin/README.md)
 
 ## License
 

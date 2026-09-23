@@ -1,0 +1,7 @@
+# Bundle layer: mount this package with its default configuration.
+- insert:
+    - id: btw-panel
+      name: btw-panel
+      config:
+        prefix: '[btw]'
+        maxChars: 2000

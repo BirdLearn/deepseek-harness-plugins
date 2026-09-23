@@ -6,7 +6,7 @@ HARNESS="${1:-$(cd "$(dirname "$0")" && pwd)/../deepseek-harness}"
 HARNESS="$(cd "$HARNESS" && pwd)"
 echo "harness repo: $HARNESS"
 
-for PLUGIN in glm-usage-plugin eastmoney-quotes-plugin; do
+for PLUGIN in glm-usage-plugin eastmoney-quotes-plugin btw-plugin; do
   P="$PWD/$PLUGIN/node_modules"
   rm -rf "$P"
   mkdir -p "$P/@deepseek-ai" "$P/@types"
@@ -21,6 +21,10 @@ for PLUGIN in glm-usage-plugin eastmoney-quotes-plugin; do
   ln -sfn "$HARNESS/packages/client/ui-sidebar" dsh-client-ui-sidebar
   ln -sfn "$HARNESS/packages/client/ui-conversation" dsh-client-ui-conversation
   ln -sfn "$HARNESS/packages/client/ui-chat" dsh-client-ui-chat
+  ln -sfn "$HARNESS/packages/client/ui-session" dsh-client-ui-session
+  ln -sfn "$HARNESS/packages/llm/llm" dsh-llm
+  ln -sfn "$HARNESS/packages/core/session" dsh-session
+  ln -sfn "$HARNESS/packages/core/agent" dsh-agent
   ln -sfn "$HARNESS/packages/credentials/credentials" dsh-credentials
   ln -sfn "$HARNESS/packages/host/webserver" dsh-host-webserver
   ln -sfn "$HARNESS/packages/util/home-paths" dsh-home-paths

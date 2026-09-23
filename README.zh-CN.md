@@ -36,12 +36,27 @@ A 股 + 港股自选实时行情，数据来自东财 / 腾讯 / 新浪公开接
 | `symbols` | `600519,000001,300750` | 初始自选；运行时的修改持久化在存储中并优先生效。 |
 | `source` | `auto` | `auto` 按链降级，或固定 `eastmoney` / `tencent` / `sina`。 |
 
+### [btw-panel](btw-plugin/)
+
+任务运行中的 **btw 顺带提醒**：不中断正在执行的任务，把一句话悄悄注入给模型。
+
+- **输入框气泡图标** — 输入工具栏上的 `btw` 触发器（slot order 30）；点击弹出提醒输入框，仅在当前会话有任务运行时可用（读取会话实时 `running` 状态，无需轮询）。
+- **静默注入** — 客户端 `{ sessionId, text }` POST 到 Host `/btw/send` 路由，Host 通过 `agents` 注册表找到活 agent 并调用 `agent.inject(...)`：提醒进入 `next-step` 收件箱，**不唤醒、不打断**运行中的 turn，模型在最近一次工具调用边界将其作为旁路上下文读取。
+- **来源标记** — 每条提醒带 `btw-reminder` 消息来源与可配置前缀（默认 `[btw]`），模型和会话记录都能区分旁路提醒与用户发言。
+
+| 配置 | 默认值 | 说明 |
+|---|---|---|
+| `prefix` | `[btw]` | 注入提醒的前缀标记。 |
+| `maxChars` | `2000` | 单条提醒最大字符数。 |
+
+
 ## 安装（桌面应用）
 
 1. 先构建插件（见下文）。
 2. 在 DeepSeek Harness 桌面应用中打开 **设置 → 插件**，从本地路径安装：
    - `glm-usage-plugin/`
    - `eastmoney-quotes-plugin/`
+   - `btw-plugin/`
 
 每个目录都声明了 `dsh.bundle`，安装即挂载；安装后重启一次应用让 Host 半边生效。
 
@@ -66,7 +81,7 @@ node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json   # 类型检查
 ## 文档
 
 - [开发经验笔记（中文）](docs/development-notes.zh-CN.md) — 仓库外 Harness 插件开发的完整经验：双半边包、lazy-CJS 客户端 bundle 格式、槽位注册、凭据引用、数据源特性与 macOS 构建坑。
-- 各插件详细说明：[glm-usage-panel](glm-usage-plugin/README.md) · [eastmoney-quotes-panel](eastmoney-quotes-plugin/README.md)
+- 各插件详细说明：[glm-usage-panel](glm-usage-plugin/README.md) · [eastmoney-quotes-panel](eastmoney-quotes-plugin/README.md) · [btw-panel](btw-plugin/README.md)
 
 ## 许可证
 

@@ -125,6 +125,10 @@ export function ComposerQuotesRing({ t, useQuotes, refresh }: QuotesRingProps): 
   }, [open])
 
   const rows = [...quotes.rows].sort((a, b) => (b.changePct ?? -999) - (a.changePct ?? -999))
+  const quoteTime = rows.reduce<number | undefined>((latest, row) => {
+    if (row.quoteTime === undefined) return latest
+    return latest === undefined || row.quoteTime > latest ? row.quoteTime : latest
+  }, undefined)
 
   return (
     <span ref={rootRef} className="emqs-root">
@@ -184,7 +188,9 @@ export function ComposerQuotesRing({ t, useQuotes, refresh }: QuotesRingProps): 
           </div>
           <div className="emqs-foot">
             <StateDot state={quotes.failed ? 'error' : quotes.loading ? 'ongoing' : 'done'} size={6} />
-            {`已同步 ${quotes.fetchedAt === undefined ? '—' : new Date(quotes.fetchedAt).toLocaleTimeString()} · 完整行情见 设置 → 自选行情`}
+            {`已同步 ${quotes.fetchedAt === undefined ? '—' : new Date(quotes.fetchedAt).toLocaleTimeString()}`}
+            {quoteTime !== undefined ? ` · 行情 ${new Date(quoteTime).toLocaleTimeString()}` : ''}
+            {' · 完整行情见 设置 → 自选行情'}
           </div>
         </div>,
         document.body,

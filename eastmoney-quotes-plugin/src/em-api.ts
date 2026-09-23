@@ -26,6 +26,8 @@ export interface EmQuote {
   readonly volume?: number
   /** Turnover in yuan. */
   readonly amount?: number
+  /** Source-reported quote time in milliseconds; absent when the provider omits it. */
+  readonly quoteTime?: number
 }
 
 /** Quote data sources in fallback order. */
@@ -105,6 +107,7 @@ function withValue<K extends keyof EmQuote>(key: K, value: EmQuote[K] | undefine
 // --- Eastmoney ----------------------------------------------------------------
 
 interface RawEmDiff {
+  f124?: unknown
   f2?: unknown
   f3?: unknown
   f4?: unknown
@@ -166,6 +169,7 @@ export function parseTencentQuotes(text: string, requestedCodes: readonly string
     const changeAmt = numberOrNull(fields[31]) ?? derive(price, prevClose, (a, b) => a - b)
     const changePct = numberOrNull(fields[32]) ?? derive(price, prevClose, (a, b) => Number(((a - b) / b * 100).toFixed(2)))
     const amountWan = numberOrNull(fields[37])
+    const qt = parseTencentTime(fields[30])
     return [{
       code: digits,
       ...withValue('name', emptyToUndefined(fields[1])),
@@ -178,6 +182,7 @@ export function parseTencentQuotes(text: string, requestedCodes: readonly string
       ...withValue('high', numberOrNull(fields[33])),
       ...withValue('low', numberOrNull(fields[34])),
       ...withValue('amount', amountWan === undefined ? undefined : amountWan * 10_000),
+      ...withValue('quoteTime', qt),
     }]
   })
 }
@@ -199,6 +204,7 @@ export function parseSinaQuotes(text: string, requestedCodes: readonly string[])
     const price = numberOrNull(fields[3])
     const prevClose = numberOrNull(fields[2])
     const volumeShares = numberOrNull(fields[8])
+    const qt = parseSinaTime(fields[30], fields[31])
     return [{
       code: digits,
       ...withValue('name', emptyToUndefined(fields[0])),
@@ -211,8 +217,26 @@ export function parseSinaQuotes(text: string, requestedCodes: readonly string[])
       ...withValue('amount', numberOrNull(fields[9])),
       ...withValue('changeAmt', derive(price, prevClose, (a, b) => a - b)),
       ...withValue('changePct', derive(price, prevClose, (a, b) => Number(((a - b) / b * 100).toFixed(2)))),
+      ...withValue('quoteTime', qt),
     }]
   })
+}
+
+/** Parse Tencent's quote time: `2026/09/23 11:24:34` (HK) or `20260923112434` (A-share). */
+function parseTencentTime(value: string | undefined): number | undefined {
+  if (value === undefined || value.trim() === '') return undefined
+  const digits = value.replace(/\D/gu, '')
+  if (digits.length < 12) return undefined
+  const iso = `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}T${digits.slice(8, 10)}:${digits.slice(10, 12)}:${digits.slice(12, 14)}`
+  const parsed = Date.parse(iso + '+08:00')
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+/** Parse Sina's split date + time fields (Beijing time). */
+function parseSinaTime(date: string | undefined, time: string | undefined): number | undefined {
+  if (date === undefined || time === undefined) return undefined
+  const parsed = Date.parse(`${date}T${time}+08:00`)
+  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 function numberOrNull(value: string | undefined): number | undefined {

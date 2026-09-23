@@ -11,12 +11,21 @@ DeepSeek Harness 插件：在设置页展示**自选股票 A 股实时行情**�
 | 字段 | 默认 | 说明 |
 |---|---|---|
 | `symbols` | `600519,000001,300750` | 自选代码串；支持A股（6位代码或 `sh`/`sz`/`bj` 前缀）与港股（`hk00700`）。搜索添加时自动带前缀 |
-| `source` | `auto` | `auto`＝按链降级；或固定 `eastmoney` / `tencent` / `sina` |
+| `source` | `auto` | `auto`＝按链降级；或固定 `api` / `eastmoney` / `tencent` / `sina` |
+| `apiBaseUrl` | （空） | 自建行情服务地址，如 `http://1.14.153.177:8989`；留空禁用 |
+| `apiKey` | （空） | 请求自建行情服务时携带的 `X-API-Key` |
+
+### 自建行情服务（API 源）
+
+**推荐：直接在「自选行情」面板底部展开「数据源」卡片填写**「自建行情服务地址」与「X-API-Key」，保存即生效（持久化到 `~/.dsh/storages/eastmoney-quotes-panel/settings.json`，Key 只显示掩码）。也可以通过插件配置字段 `apiBaseUrl`/`apiKey` 设置（面板中保存的值优先）。
+
+两个字段就绪后，`source: auto` 会**优先**请求自建服务 `GET {apiBaseUrl}/api/v1/stocks/quotes?codes=600519,000001`（请求头 `X-API-Key`），失败时自动降级到东财/腾讯/新浪；也可以把 `source` 固定为 `api` 强制只用该服务。该源响应中的 `changePct` 是小数（如 `-0.002`），插件会换算为百分比展示。
 
 ### 数据源与降级链
 
 | 顺序 | 源 | 接口 |
 |---|---|---|
+| 0 | api（可选，需配置） | 自建服务 `/api/v1/stocks/quotes`，带 `X-API-Key` |
 | 1 | eastmoney | `push2.eastmoney.com/api/qt/ulist.np/get`（批量，字段最全） |
 | 2 | tencent | `qt.gtimg.cn/q=`（GBK，自动派生涨跌幅） |
 | 3 | sina | `hq.sinajs.cn/list=`（GBK，需 Referer，自动派生涨跌幅） |
@@ -33,6 +42,8 @@ DeepSeek Harness 插件：在设置页展示**自选股票 A 股实时行情**�
 # 前置：在 deepseek-harness-plugins 根运行 ./setup-links.sh 建立依赖符号链接
 cd eastmoney-quotes-plugin
 node node_modules/tsdown/dist/run.mjs        # 产出 lib/index.js + lib/client.js
+# 若 tsdown 因缺少 unrun 依赖无法加载配置，可用备选脚本（直接调 rolldown，产物等价）：
+node scripts/build-rolldown.mjs
 node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
 ```
 

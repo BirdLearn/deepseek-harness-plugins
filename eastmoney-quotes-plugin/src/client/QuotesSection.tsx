@@ -21,6 +21,17 @@ export interface QuotesSnapshot {
   fetchedAt?: number
   /** Last request round-trip in milliseconds. */
   delayMs?: number
+  /** Source that answered the last fetch (`api` when the self-hosted service won). */
+  lastSource?: string
+  /** Data-source settings shown in the settings card (key masked). */
+  settings: ApiSettingsView
+}
+
+/** Data-source settings as shown in the settings card. */
+export interface ApiSettingsView {
+  apiBaseUrl: string
+  apiKey: string
+  apiKeySet: boolean
 }
 
 /** Operations injected into the section component. */
@@ -35,6 +46,10 @@ export interface QuotesInjected {
   remove: (symbol: string) => Promise<void>
   /** Persist a new watchlist order. */
   reorder: (order: readonly string[]) => Promise<void>
+  /** @returns the current data-source settings (key masked). */
+  loadSettings: () => Promise<ApiSettingsView>
+  /** Persist data-source settings; omit `apiKey` to keep the stored one. */
+  saveSettings: (input: { apiBaseUrl: string; apiKey?: string }) => Promise<ApiSettingsView>
   /** Quotes snapshot source; the renderer binds `useQuotes`. */
   hooks: { quotes: { getSnapshot(): QuotesSnapshot; subscribe(listener: () => void): () => void } }
 }
@@ -64,6 +79,10 @@ export interface QuotesSectionProps {
   remove: (symbol: string) => Promise<void>
   /** Persist a new watchlist order. */
   reorder: (order: readonly string[]) => Promise<void>
+  /** @returns the current data-source settings (key masked). */
+  loadSettings: () => Promise<ApiSettingsView>
+  /** Persist data-source settings; omit `apiKey` to keep the stored one. */
+  saveSettings: (input: { apiBaseUrl: string; apiKey?: string }) => Promise<ApiSettingsView>
 }
 
 /** Section stylesheet: hover states and table polish need real CSS, not inline styles. */
@@ -122,6 +141,10 @@ const CSS = `
 .emq-sugg-btn:disabled { cursor: default; background: transparent; border: 1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.3)); color: var(--emq-faint); }
 .emq-note { font-size: 12px; color: var(--emq-muted); }
 .emq-error { font-size: 12px; color: var(--dsw-alias-status-critical, #d5494c); }
+.emq-source-toggle { width: 100%; border: none; background: transparent; cursor: pointer; text-align: left; font: inherit; }
+.emq-source-toggle:hover { background: var(--dsw-alias-interactive-bg-hover-accent, rgba(128,128,128,0.06)); }
+.emq-source-body { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; }
+.emq-field { display: flex; flex-direction: column; gap: 4px; }
 `
 
 type TabKey = 'all' | 'a' | 'hkus'
@@ -187,10 +210,44 @@ function num(value: number | undefined, suspended: string): string {
 }
 
 /** Eastmoney watchlist settings section: monitoring matrix, tabs, search-to-add, reorder and removal. */
-export function QuotesSection({ t, useQuotes, refresh, search, add, remove, reorder }: QuotesSectionProps): ReactElement {
+export function QuotesSection({ t, useQuotes, refresh, search, add, remove, reorder, loadSettings, saveSettings }: QuotesSectionProps): ReactElement {
   const quotes = useQuotes((snapshot) => snapshot)
   const [tab, setTab] = useState<TabKey>('all')
   const trading = isTradingNow()
+  const [sourceOpen, setSourceOpen] = useState(false)
+  const [baseUrlDraft, setBaseUrlDraft] = useState('')
+  const [keyDraft, setKeyDraft] = useState('')
+  const [sourceBusy, setSourceBusy] = useState(false)
+  const [sourceError, setSourceError] = useState<string | undefined>()
+  const [sourceSaved, setSourceSaved] = useState(false)
+
+  const openSourceCard = (): void => {
+    setSourceOpen((open) => !open)
+    setBaseUrlDraft(quotes.settings.apiBaseUrl)
+    setKeyDraft('')
+    setSourceError(undefined)
+    setSourceSaved(false)
+    if (!sourceOpen) void loadSettings().then((settings) => {
+      setBaseUrlDraft(settings.apiBaseUrl)
+    })
+  }
+
+  const submitSource = async (): Promise<void> => {
+    setSourceBusy(true)
+    setSourceError(undefined)
+    try {
+      const input: { apiBaseUrl: string; apiKey?: string } = { apiBaseUrl: baseUrlDraft }
+      if (keyDraft.trim() !== '') input.apiKey = keyDraft.trim()
+      await saveSettings(input)
+      setKeyDraft('')
+      setSourceSaved(true)
+      await refresh()
+    } catch (error: unknown) {
+      setSourceError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setSourceBusy(false)
+    }
+  }
 
   const move = (index: number, delta: -1 | 1): void => {
     const order = [...quotes.codes]
@@ -299,6 +356,40 @@ export function QuotesSection({ t, useQuotes, refresh, search, add, remove, reor
       {!quotes.failed && quotes.rows.length === 0
         ? <span className="emq-note">{t('empty')}</span>
         : null}
+      <div className="emq-card">
+        <button type="button" className="emq-card-head emq-source-toggle" data-open={sourceOpen} onClick={openSourceCard}>
+          <span className="emq-card-title">
+            {t('sourceTitle')}
+            {quotes.lastSource !== undefined ? <span className="emq-pill">{quotes.lastSource}</span> : null}
+          </span>
+          <span className="emq-hint">{sourceOpen ? '▾' : '▸'}</span>
+        </button>
+        {sourceOpen
+          ? (
+              <div className="emq-source-body">
+                <label className="emq-field">
+                  <span className="emq-add-label">{t('sourceBaseUrl')}</span>
+                  <input className="emq-input" type="text" value={baseUrlDraft} placeholder="http://1.14.153.177:8989"
+                    onChange={(event) => { setBaseUrlDraft(event.target.value) }} />
+                </label>
+                <label className="emq-field">
+                  <span className="emq-add-label">{`${t('sourceApiKey')}${quotes.settings.apiKeySet ? `（${t('sourceKeySet')} ${quotes.settings.apiKey}）` : ''}`}</span>
+                  <input className="emq-input" type="password" value={keyDraft}
+                    placeholder={quotes.settings.apiKeySet ? t('sourceKeyKeep') : 'zsak_…'}
+                    onChange={(event) => { setKeyDraft(event.target.value) }} />
+                </label>
+                {sourceError !== undefined ? <span className="emq-error">{sourceError}</span> : null}
+                {sourceSaved && sourceError === undefined ? <span className="emq-note">{t('sourceSaved')}</span> : null}
+                <div>
+                  <Button variant="outline" size="sm" disabled={sourceBusy} onClick={() => { void submitSource() }}>
+                    {sourceBusy ? t('sourceSaving') : t('sourceSave')}
+                  </Button>
+                </div>
+                <span className="emq-hint">{t('sourceHint')}</span>
+              </div>
+            )
+          : null}
+      </div>
       <div className="emq-card">
         <div className="emq-card-head">
           <span className="emq-card-title">{t('search')}</span>

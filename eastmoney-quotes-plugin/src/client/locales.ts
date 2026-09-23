@@ -39,6 +39,15 @@ export const en = {
   searching: 'Searching…',
   noResults: 'No match',
   searchFailed: 'Search failed',
+  sourceTitle: 'Data source',
+  sourceBaseUrl: 'Self-hosted service base URL',
+  sourceApiKey: 'X-API-Key',
+  sourceKeySet: 'saved, ends with',
+  sourceKeyKeep: 'Leave blank to keep the saved key',
+  sourceSave: 'Save',
+  sourceSaving: 'Saving…',
+  sourceSaved: 'Saved. Quotes now prefer this service and fall back to public sources.',
+  sourceHint: 'When both fields are set, quotes fetch from this service first, then fall back to Eastmoney / Tencent / Sina.',
 } as const
 /** Watchlist locale keys. */
 export type QuotesKey = keyof typeof en
@@ -83,4 +92,13 @@ export const zh: Record<QuotesKey, string> = {
   searching: '搜索中…',
   noResults: '无匹配',
   searchFailed: '搜索失败',
+  sourceTitle: '数据源',
+  sourceBaseUrl: '自建行情服务地址',
+  sourceApiKey: 'X-API-Key',
+  sourceKeySet: '已保存，结尾',
+  sourceKeyKeep: '留空则保留已保存的 Key',
+  sourceSave: '保存',
+  sourceSaving: '保存中…',
+  sourceSaved: '已保存。行情将优先使用该服务，失败自动降级公开源。',
+  sourceHint: '两个字段都填写后，行情优先请求该服务；失败时自动降级到东财/腾讯/新浪。',
 }

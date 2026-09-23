@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import { fetchQuotes, searchEmStocks } from './em-api.ts'
 import { addToWatchlist, currentWatchlist, removeFromWatchlist, reorderWatchlist } from './watchlist.ts'
+import { currentApiSettings, loadApiSettings, saveApiSettings } from './settings.ts'
 import { type Config, type QuoteSourceChoice } from './config.ts'
 
 export { Config } from './config.ts'
@@ -34,6 +35,9 @@ export const inject = ['webServer']
 export function apply(ctx: Context, config: Config): void {
   const configured = (): string[] => config.symbols.get().split(/[\s,，;；]+/u).filter((code) => code !== '')
 
+  /** Effective data-source settings: UI-stored values win over the plugin config. */
+  const apiOptions = () => currentApiSettings({ apiBaseUrl: config.apiBaseUrl.get(), apiKey: config.apiKey.get() })
+
   const send = (response: ServerResponse, body: unknown): void => {
     response.writeHead(200, { 'content-type': 'application/json' })
     response.end(JSON.stringify(body))
@@ -49,7 +53,7 @@ export function apply(ctx: Context, config: Config): void {
       let body: EmQuotesSummary
       try {
         const requested = currentWatchlist(configured())
-        const result = await fetchQuotes(requested, config.source.get() as QuoteSourceChoice)
+        const result = await fetchQuotes(requested, config.source.get() as QuoteSourceChoice, fetch, apiOptions())
         body = result.ok
           ? { codes: requested, source: result.source, rows: result.value, fetchedAt: Date.now() }
           : { codes: requested, failure: result.error }
@@ -73,7 +77,7 @@ export function apply(ctx: Context, config: Config): void {
       }
       // Merge a live quote summary into each suggestion for the search card.
       const codes = result.value.map((row) => row.code)
-      const quotes = await fetchQuotes(codes)
+      const quotes = await fetchQuotes(codes, 'auto', fetch, apiOptions())
       const byCode = new Map(quotes.ok ? quotes.value.map((row) => [row.code, row]) : [])
       send(response, {
         results: result.value.map((row) => {
@@ -111,6 +115,46 @@ export function apply(ctx: Context, config: Config): void {
       }
     },
   }), 'eastmoney-quotes: watchlist route')
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: '/em-quotes/settings',
+    handler: async (request, response) => {
+      if (request.method !== 'POST') {
+        const effective = apiOptions()
+        // Mask the key for display; the client sends the raw value back unchanged
+        // unless the user types a replacement.
+        send(response, {
+          apiBaseUrl: effective.apiBaseUrl,
+          apiKey: effective.apiKey === '' ? '' : `•••${effective.apiKey.slice(-4)}`,
+          apiKeySet: effective.apiKey !== '',
+        })
+        return
+      }
+      const raw = await readBody(request)
+      try {
+        const parsed = JSON.parse(raw) as { apiBaseUrl?: unknown; apiKey?: unknown }
+        if (parsed.apiBaseUrl !== undefined && typeof parsed.apiBaseUrl !== 'string') throw new Error('"apiBaseUrl" must be a string')
+        if (parsed.apiKey !== undefined && typeof parsed.apiKey !== 'string') throw new Error('"apiKey" must be a string')
+        const masked = typeof parsed.apiKey === 'string' && /^•••/u.test(parsed.apiKey)
+        if (masked) throw new Error('"apiKey" looks masked — send the real key or omit it to keep the stored one')
+        const current = loadApiSettings() ?? { apiBaseUrl: '', apiKey: '' }
+        saveApiSettings({
+          apiBaseUrl: typeof parsed.apiBaseUrl === 'string' ? parsed.apiBaseUrl.trim() : (current.apiBaseUrl ?? ''),
+          apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey.trim() : (current.apiKey ?? ''),
+        })
+        const effective = apiOptions()
+        send(response, {
+          apiBaseUrl: effective.apiBaseUrl,
+          apiKey: effective.apiKey === '' ? '' : `•••${effective.apiKey.slice(-4)}`,
+          apiKeySet: effective.apiKey !== '',
+        })
+      } catch (error: unknown) {
+        response.writeHead(400, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ failure: error instanceof Error ? error.message : String(error) }))
+      }
+    },
+  }), 'eastmoney-quotes: settings route')
 }
 
 /** Read one request body as UTF-8 text, bounded to 64 KiB. */

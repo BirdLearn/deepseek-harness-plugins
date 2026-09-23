@@ -24,6 +24,19 @@ interface SummaryBody {
   rows?: readonly unknown[]
   failure?: string
   fetchedAt?: number
+  source?: string
+}
+
+/** Body answered by the Host `/em-quotes/settings` route. */
+interface SettingsBody extends ApiSettingsView {
+  failure?: string
+}
+
+/** Data-source settings as shown in the panel's settings card. */
+export interface ApiSettingsView {
+  apiBaseUrl: string
+  apiKey: string
+  apiKeySet: boolean
 }
 
 /**
@@ -34,11 +47,55 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register('em.quotes', { en, zh }), 'em.quotes: dictionaries')
   const t = ctx.locale.bind('em.quotes')
 
-  let snapshot: QuotesSnapshot = { loading: true, failed: false, codes: [], rows: [] }
+  let snapshot: QuotesSnapshot = { loading: true, failed: false, codes: [], rows: [],
+    settings: { apiBaseUrl: '', apiKey: '', apiKeySet: false } }
   const listeners = new Set<() => void>()
   const publish = (value: QuotesSnapshot): void => {
     snapshot = value
     for (const listener of listeners) listener()
+  }
+
+  const loadSettings = async (): Promise<ApiSettingsView> => {
+    try {
+      const response = await fetch('/em-quotes/settings')
+      const text = await response.text()
+      if (!response.ok || text.trim() === '') {
+        publish({ ...snapshot, failed: true,
+          failure: `Host 路由 /em-quotes/settings 不可用（HTTP ${String(response.status)}）— 请完全退出并重启应用让 Host 半边加载新代码` })
+        return snapshot.settings
+      }
+      const body = JSON.parse(text) as SettingsBody
+      if (body.failure === undefined) {
+        const settings: ApiSettingsView = { apiBaseUrl: body.apiBaseUrl, apiKey: body.apiKey, apiKeySet: body.apiKeySet }
+        publish({ ...snapshot, settings })
+        return settings
+      }
+    } catch {
+      // Settings display is best-effort; the quotes fetch reports host failures.
+    }
+    return snapshot.settings
+  }
+
+  const saveSettings = async (input: { apiBaseUrl: string; apiKey?: string }): Promise<ApiSettingsView> => {
+    const response = await fetch('/em-quotes/settings', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    const text = await response.text()
+    if (text.trim() === '') {
+      throw new Error(`Host 路由不可用（HTTP ${String(response.status)}）— 请完全退出并重启应用（Cmd+Q）让 Host 半边加载新代码`)
+    }
+    let body: SettingsBody
+    try {
+      body = JSON.parse(text) as SettingsBody
+    } catch {
+      throw new Error('Host 返回了非 JSON 响应 — 请重启应用让 Host 半边生效')
+    }
+    if (body.failure !== undefined) throw new Error(body.failure)
+    const settings: ApiSettingsView = { apiBaseUrl: body.apiBaseUrl, apiKey: body.apiKey, apiKeySet: body.apiKeySet }
+    publish({ ...snapshot, settings })
+    return settings
   }
 
   const refresh = async (): Promise<void> => {
@@ -48,7 +105,7 @@ export function apply(ctx: Context): void {
       if (!response.ok) {
         // 404/5xx with an empty body means the Host half is not answering
         // (not activated yet, or the app needs a restart after install).
-        publish({ loading: false, failed: true, codes: [], rows: [],
+        publish({ ...snapshot, loading: false, failed: true, codes: [], rows: [],
           failure: `Host route unavailable (HTTP ${String(response.status)}) — 插件 Host 半边未激活，安装后请重启应用` })
         return
       }
@@ -56,10 +113,11 @@ export function apply(ctx: Context): void {
       try {
         body = await response.json() as SummaryBody
       } catch {
-        publish({ loading: false, failed: true, codes: [], rows: [], failure: 'Host answered a non-JSON body — 请重启应用让 Host 半边生效' })
+        publish({ ...snapshot, loading: false, failed: true, codes: [], rows: [], failure: 'Host answered a non-JSON body — 请重启应用让 Host 半边生效' })
         return
       }
       publish({
+        ...snapshot,
         loading: false,
         failed: body.failure !== undefined,
         failure: body.failure,
@@ -67,6 +125,7 @@ export function apply(ctx: Context): void {
         rows: (body.rows ?? []) as QuotesSnapshot['rows'],
         fetchedAt: body.fetchedAt,
         delayMs: Math.round(performance.now() - startedAt),
+        lastSource: body.source,
       })
     } catch (error: unknown) {
       publish({ ...snapshot, loading: false, failed: true, codes: [], rows: [],
@@ -74,6 +133,7 @@ export function apply(ctx: Context): void {
     }
   }
   void refresh()
+  void loadSettings()
   // Realtime cadence: 10s while the harness is open; the Eastmoney public
   // endpoint tolerates this rate for a handful of symbols.
   const poll = setInterval(() => { void refresh() }, 10_000)
@@ -107,6 +167,8 @@ export function apply(ctx: Context): void {
     add,
     remove,
     reorder,
+    loadSettings,
+    saveSettings,
     hooks: {
       quotes: {
         getSnapshot: () => snapshot,

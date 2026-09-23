@@ -1,4 +1,5 @@
 /** Watchlist realtime quotes with multi-source fallback for the Host face. */
+import type { ApiOptions } from './config.ts'
 
 /** One watchlist quote row as rendered by the client. */
 export interface EmQuote {
@@ -30,10 +31,10 @@ export interface EmQuote {
   readonly quoteTime?: number
 }
 
-/** Quote data sources in fallback order. */
-export type QuoteSource = 'eastmoney' | 'tencent' | 'sina'
+/** Quote data sources in fallback order. The `api` source is the optional self-hosted service. */
+export type QuoteSource = 'api' | 'eastmoney' | 'tencent' | 'sina'
 
-/** Provider chain used by `source: auto`. */
+/** Provider chain used by `source: auto` when no API service is configured. */
 export const SOURCE_CHAIN: readonly QuoteSource[] = ['eastmoney', 'tencent', 'sina']
 
 export type EmQuotesResult = { readonly ok: true; readonly source: QuoteSource; readonly value: readonly EmQuote[] } | { readonly ok: false; readonly error: string }
@@ -147,6 +148,66 @@ export function parseEmQuotes(body: unknown, requestedCodes: readonly string[]):
       ...withValue('amount', num(raw.f6)),
     }]
   })
+}
+
+// --- Self-hosted API service (GET /api/v1/stocks/quotes, X-API-Key) ------------
+
+interface RawApiRow {
+  market?: unknown
+  code?: unknown
+  close?: unknown
+  preClose?: unknown
+  open?: unknown
+  high?: unknown
+  low?: unknown
+  vol?: unknown
+  amount?: unknown
+  serverTime?: unknown
+  changePct?: unknown
+}
+
+/**
+ * Parse one self-hosted `/api/v1/stocks/quotes` body. The service reports
+ * `changePct` as a fraction (`-0.002`), so it is scaled to percent here;
+ * the change amount is derived from close and previous close.
+ */
+export function parseApiQuotes(body: unknown, requestedCodes: readonly string[]): readonly EmQuote[] {
+  const envelope = body instanceof Object && 'data' in body ? body as { code?: unknown; data?: unknown } : undefined
+  if (envelope === undefined || envelope.code !== 0) throw new Error('api service returned a non-zero code')
+  const rows = Array.isArray(envelope.data) ? envelope.data : []
+  const valid = new Set(requestedCodes)
+  return rows.flatMap((entry): EmQuote[] => {
+    if (!(entry instanceof Object)) return []
+    const raw = entry as RawApiRow
+    const code = str(raw.code)
+    if (code === undefined || !valid.has(code)) return []
+    const price = num(raw.close)
+    const prevClose = num(raw.preClose)
+    const changePct = num(raw.changePct)
+    return [{
+      code,
+      ...withValue('price', price),
+      ...withValue('open', num(raw.open)),
+      ...withValue('high', num(raw.high)),
+      ...withValue('low', num(raw.low)),
+      ...withValue('prevClose', prevClose),
+      ...withValue('volume', num(raw.vol)),
+      ...withValue('amount', num(raw.amount)),
+      ...withValue('changeAmt', derive(price, prevClose, (a, b) => a - b)),
+      ...withValue('changePct', changePct === undefined ? undefined : Number((changePct * 100).toFixed(4))),
+      ...withValue('quoteTime', parseApiTime(str(raw.serverTime))),
+    }]
+  })
+}
+
+/** Combine today's Beijing date with the service's `HH:MM:SS.mmm`. */
+function parseApiTime(value: string | undefined): number | undefined {
+  if (value === undefined || !/^\d{2}:\d{2}:\d{2}/u.test(value)) return undefined
+  const now = new Date()
+  const beijing = new Date(now.getTime() + (8 * 60 + now.getTimezoneOffset()) * 60_000)
+  const iso = `${beijing.toISOString().slice(0, 10)}T${value}+08:00`
+  const parsed = Date.parse(iso)
+  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 // --- Tencent (qt.gtimg.cn, GBK) -----------------------------------------------
@@ -265,7 +326,13 @@ function gbkDecode(buffer: ArrayBuffer): string {
   return new TextDecoder('gbk').decode(buffer)
 }
 
-async function fetchFromSource(source: QuoteSource, codes: readonly string[], providerCodes: readonly string[], fetchImpl: typeof fetch): Promise<readonly EmQuote[]> {
+async function fetchFromSource(source: QuoteSource, codes: readonly string[], providerCodes: readonly string[], fetchImpl: typeof fetch, api: ApiOptions = { apiBaseUrl: '', apiKey: '' }): Promise<readonly EmQuote[]> {
+  if (source === 'api') {
+    if (api.apiBaseUrl === '' || api.apiKey === '') throw new Error('api source requires apiBaseUrl and apiKey in the plugin config')
+    const url = `${api.apiBaseUrl.replace(/\/+$/u, '')}/api/v1/stocks/quotes?codes=${providerCodes.join(',')}`
+    const text = await fetchText(url, { 'x-api-key': api.apiKey, accept: 'application/json' }, fetchImpl)
+    return parseApiQuotes(JSON.parse(text) as unknown, providerCodes)
+  }
   if (source === 'eastmoney') {
     const secids = codes.flatMap((code) => {
       const secid = toSecid(code)
@@ -302,17 +369,24 @@ async function fetchFromSource(source: QuoteSource, codes: readonly string[], pr
 /**
  * Fetch realtime quotes, trying sources in order until one answers with rows.
  * @param codes - board codes without market prefixes.
- * @param source - `auto` walks the fallback chain; a fixed name asks one source.
+ * @param source - `auto` walks the fallback chain (the configured API service first);
+ * a fixed name asks one source; `api` requires `apiBaseUrl`/`apiKey`.
  * @param fetchImpl - Injectable fetch for tests.
+ * @param api - Self-hosted service endpoint and key from the plugin config.
  * @returns The quote rows with the answering source, or the last failure.
  */
 export async function fetchQuotes(
   codes: readonly string[],
   source: 'auto' | QuoteSource = 'auto',
   fetchImpl: typeof fetch = fetch,
+  api: ApiOptions = { apiBaseUrl: '', apiKey: '' },
 ): Promise<EmQuotesResult> {
   if (codes.length === 0) return { ok: false, error: 'watchlist is empty' }
-  const chain = source === 'auto' ? SOURCE_CHAIN : [source]
+  const apiReady = api.apiBaseUrl.trim() !== '' && api.apiKey.trim() !== ''
+  if (source === 'api' && !apiReady) return { ok: false, error: 'api source requires apiBaseUrl and apiKey in the plugin config' }
+  const chain: readonly QuoteSource[] = source === 'auto'
+    ? (apiReady ? ['api', ...SOURCE_CHAIN] : SOURCE_CHAIN)
+    : [source]
   const providerCodes = codes.flatMap((symbol) => {
     const provider = providerCodeOf(symbol)
     return provider === undefined ? [] : [provider]
@@ -320,14 +394,50 @@ export async function fetchQuotes(
   let lastError = 'no source answered'
   for (const candidate of chain) {
     try {
-      const value = await fetchFromSource(candidate, codes, providerCodes, fetchImpl)
-      if (value.length > 0) return { ok: true, source: candidate, value }
+      const value = await fetchFromSource(candidate, codes, providerCodes, fetchImpl, { apiBaseUrl: api.apiBaseUrl.trim(), apiKey: api.apiKey.trim() })
+      if (value.length > 0) {
+        const filled = await withNames(alignRows(value, codes), codes, providerCodes, fetchImpl)
+        return { ok: true, source: candidate, value: filled }
+      }
       lastError = `${candidate}: no matching row for the watchlist`
     } catch (error: unknown) {
       lastError = `${candidate}: ${error instanceof Error ? error.message : String(error)}`
     }
   }
   return { ok: false, error: lastError }
+}
+
+/**
+ * Names learned from name-carrying sources, so the nameless self-hosted API
+ * rows can display real stock names instead of bare codes.
+ */
+const nameCache = new Map<string, string>()
+
+/** Timestamp of the last background name fill; throttles the extra lookup. */
+let lastFillAt = 0
+
+/**
+ * Fill missing row names from the cache, topping the cache up from Tencent
+ * (names only) when needed. Best-effort: failures leave rows unchanged.
+ */
+async function withNames(value: readonly EmQuote[], codes: readonly string[], providerCodes: readonly string[], fetchImpl: typeof fetch): Promise<readonly EmQuote[]> {
+  const missing = value.some((row) => row.name === undefined)
+  if (missing && Date.now() - lastFillAt > 300_000) {
+    lastFillAt = Date.now()
+    try {
+      const names = await fetchFromSource('tencent', codes, providerCodes, fetchImpl)
+      for (const row of alignRows(names, codes)) {
+        if (row.name !== undefined) nameCache.set(row.code, row.name)
+      }
+    } catch {
+      // Name enrichment is cosmetic; the quote rows still stand alone.
+    }
+  }
+  if (nameCache.size === 0) return value
+  return value.map((row) => {
+    const cached = nameCache.get(row.code)
+    return row.name !== undefined || cached === undefined ? row : { ...row, name: cached }
+  })
 }
 
 /** Backward-compatible alias for the Eastmoney-only face. */

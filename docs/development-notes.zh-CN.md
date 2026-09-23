@@ -183,6 +183,7 @@ useDismissOnOutsidePointer(rootRef, open, setOpen, panelRef)
 | `settings.section` | 完整管理面板放这里 |
 
 注意：`conversation.*` 槽位的类型声明在 `@deepseek-ai/dsh-client-ui-chat/client`（不只是 ui-conversation），缺这个 type import 会报槽位 key 不存在。
+- **list 槽位的多个图标必须显式声明 `order`**：同一槽位被多个插件占用时，渲染顺序取决于插件激活/注册的先后，重启之间可能漂移（实测两个图标位置互换）。给每个注册固定 `order`（如 10/20）即可锁定。靠根元素 `margin-left:auto` 推到行尾时，只给**第一个**图标加，后续图标不带，否则 auto margin 均分空隙会把图标散开。
 
 ### Volatile 配置（再次强调）
 
